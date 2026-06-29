@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ActiveSG Pool Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface2: #334155;
+      --border: #475569;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+      --orange: #f97316;
+      --red: #ef4444;
+      --accent: #38bdf8;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid var(--border);
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    header h1 { font-size: 22px; font-weight: 700; color: var(--accent); }
+    header p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+    .main { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+    /* ── section ── */
+    .section { margin-bottom: 36px; }
+    .section-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── pool cards ── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: default;
+    }
+
+    .card.closed { opacity: .45; }
+
+    .card-name {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-pct {
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .card-bar-track {
+      height: 4px;
+      border-radius: 2px;
+      background: var(--surface2);
+      overflow: hidden;
+    }
+
+    .card-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width .4s ease;
+    }
+
+    .card-closed-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--muted);
+    }
+
+    /* ── chart containers ── */
+    .chart-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .chart-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    select, button {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    select:focus, button:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    button.active {
+      background: var(--accent);
+      color: #0f172a;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .range-btns { display: flex; gap: 4px; }
+
+    canvas { display: block; width: 100% !important; }
+
+    /* ── status bar ── */
+    #status {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 16px;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      padding: 40px 0;
+      justify-content: center;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 780px) {
+      .two-col { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>ActiveSG Pool Tracker</h1>
+  <p id="header-sub">Loading…</p>
+</header>
+
+<div class="main">
+  <div id="status"></div>
+
+  <!-- ── Latest snapshot ── -->
+  <div class="section">
+    <div class="section-title">Latest Snapshot</div>
+    <div id="cards-container">
+      <div class="loading"><div class="spinner"></div> Fetching data…</div>
+    </div>
+  </div>
+
+  <!-- ── Time series ── -->
+  <div class="section">
+    <div class="section-title">Capacity Over Time</div>
+    <div class="chart-box">
+      <div class="chart-controls">
+        <select id="ts-pool-select"><option value="__all__">— All pools (average) —</option></select>
+        <div class="range-btns">
+          <button class="range-btn active" data-days="7">7d</button>
+          <button class="range-btn" data-days="30">30d</button>
+          <button class="range-btn" data-days="90">90d</button>
+          <button class="range-btn" data-days="0">All</button>
+        </div>
+      </div>
+      <canvas id="ts-chart" height="260"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Hourly pattern + day-of-week ── -->
+  <div class="section">
+    <div class="section-title">Usage Patterns (SGT)</div>
+    <div class="chart-controls" style="margin-bottom:12px;">
+      <select id="pat-pool-select"><option value="__all__">— All pools (average) —</option></select>
+    </div>
+    <div class="two-col">
+      <div class="chart-box">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Average by Hour of Day</div>
+        <canvas id="hour-chart" height="220"></canvas>
+      </div>
+      <div class="chart-box">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Average by Day of Week</div>
+        <canvas id="dow-chart" height="220"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const REPO = 'shiftyfoe/open-activesg';
+const RAW = `https://raw.githubusercontent.com/${REPO}/main/data`;
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+
+function capacityColor(pct) {
+  if (pct <= 20) return '#22c55e';
+  if (pct <= 50) return '#f59e0b';
+  if (pct <= 75) return '#f97316';
+  return '#ef4444';
+}
+
+function toSGT(ts) {
+  return new Date(ts + 8 * 3600_000); // UTC+8
+}
+
+function sgtHour(ts) { return toSGT(ts).getUTCHours(); }
+function sgtDow(ts)  { return toSGT(ts).getUTCDay(); }  // 0=Sun
+
+function avgOpen(pools) {
+  const open = pools.filter(p => !p.is_closed);
+  if (!open.length) return 0;
+  return open.reduce((s, p) => s + p.capacity_pct, 0) / open.length;
+}
+
+function fmtTime(ts) {
+  return toSGT(ts).toLocaleString('en-SG', {
+    timeZone: 'UTC',
+    month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+    hour12: false
+  });
+}
+
+function shortName(name) {
+  return name
+    .replace('Swimming Complex', '')
+    .replace('ActiveSG Sport Park @ ', '')
+    .replace('ActiveSG ', '')
+    .replace(' Complex', '')
+    .trim();
+}
+
+// ── Data loading ───────────────────────────────────────────────────────────
+
+function monthsToTry() {
+  const out = [];
+  const now = new Date();
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push(d.toISOString().slice(0, 7));
+  }
+  return out;
+}
+
+async function fetchMonth(month) {
+  try {
+    const res = await fetch(`${RAW}/${month}.jsonl`, { cache: 'no-cache' });
+    if (!res.ok) return [];
+    const text = await res.text();
+    return text.trim().split('\n').filter(Boolean).map(line => {
+      try { return JSON.parse(line); } catch { return null; }
+    }).filter(Boolean);
+  } catch { return []; }
+}
+
+// ── Charts ─────────────────────────────────────────────────────────────────
+
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = '#334155';
+Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+Chart.defaults.font.size = 12;
+
+let tsChart = null;
+let hourChart = null;
+let dowChart = null;
+
+function buildTsDataset(records, poolId, days) {
+  const cutoff = days > 0 ? Date.now() - days * 86400_000 : 0;
+  const filtered = records.filter(r => r.timestamp >= cutoff);
+  if (!filtered.length) return { labels: [], data: [] };
+
+  const labels = filtered.map(r => fmtTime(r.timestamp));
+  const data = filtered.map(r => {
+    if (poolId === '__all__') return parseFloat(avgOpen(r.pools).toFixed(1));
+    const p = r.pools.find(x => x.id === poolId);
+    return p && !p.is_closed ? p.capacity_pct : null;
+  });
+
+  return { labels, data };
+}
+
+function renderTsChart(records, poolId, days) {
+  const { labels, data } = buildTsDataset(records, poolId, days);
+  const ctx = document.getElementById('ts-chart');
+
+  if (tsChart) { tsChart.destroy(); tsChart = null; }
+
+  tsChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: poolId === '__all__' ? 'Average capacity %' : (poolNames[poolId] || poolId),
+        data,
+        borderColor: '#38bdf8',
+        backgroundColor: 'rgba(56,189,248,.08)',
+        borderWidth: 2,
+        pointRadius: labels.length < 40 ? 3 : 0,
+        pointHoverRadius: 5,
+        spanGaps: true,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(1) + '%' : 'Closed'}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxTicksLimit: 8,
+            maxRotation: 0,
+          },
+          grid: { color: '#1e293b' }
+        },
+        y: {
+          min: 0,
+          max: 100,
+          ticks: { callback: v => v + '%' },
+          grid: { color: '#1e293b' }
+        }
+      }
+    }
+  });
+
+  ctx.parentElement.style.height = '260px';
+}
+
+function buildPatternDatasets(records, poolId) {
+  const hourBuckets = Array.from({ length: 24 }, () => ({ sum: 0, n: 0 }));
+  const dowBuckets  = Array.from({ length: 7  }, () => ({ sum: 0, n: 0 }));
+
+  records.forEach(r => {
+    const val = poolId === '__all__'
+      ? avgOpen(r.pools)
+      : (() => { const p = r.pools.find(x => x.id === poolId); return p && !p.is_closed ? p.capacity_pct : null; })();
+    if (val === null || val === undefined) return;
+
+    const h = sgtHour(r.timestamp);
+    const d = sgtDow(r.timestamp);
+    hourBuckets[h].sum += val; hourBuckets[h].n++;
+    dowBuckets[d].sum  += val; dowBuckets[d].n++;
+  });
+
+  const hourData = hourBuckets.map(b => b.n ? parseFloat((b.sum / b.n).toFixed(1)) : null);
+  const dowData  = dowBuckets.map (b => b.n ? parseFloat((b.sum / b.n).toFixed(1)) : null);
+  return { hourData, dowData };
+}
+
+function renderPatternCharts(records, poolId) {
+  const { hourData, dowData } = buildPatternDatasets(records, poolId);
+
+  const hourLabels = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2,'0')}:00`);
+  const dowLabels  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  const barOpts = (labels, data) => ({
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: data.map(v => v === null ? '#334155' : capacityColor(v) + 'cc'),
+        borderColor:      data.map(v => v === null ? '#475569' : capacityColor(v)),
+        borderWidth: 1,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` ${c.parsed.y !== null ? c.parsed.y.toFixed(1) + '%' : 'No data'}` } }
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#1e293b' } }
+      }
+    }
+  });
+
+  const hCtx = document.getElementById('hour-chart');
+  const dCtx = document.getElementById('dow-chart');
+
+  if (hourChart) { hourChart.destroy(); }
+  if (dowChart)  { dowChart.destroy(); }
+
+  hourChart = new Chart(hCtx, barOpts(hourLabels, hourData));
+  dowChart  = new Chart(dCtx, barOpts(dowLabels,  dowData));
+
+  hCtx.parentElement.style.height = '220px';
+  dCtx.parentElement.style.height = '220px';
+}
+
+// ── Cards ──────────────────────────────────────────────────────────────────
+
+function renderCards(record) {
+  const sorted = [...record.pools].sort((a, b) => {
+    if (a.is_closed !== b.is_closed) return a.is_closed ? 1 : -1;
+    return b.capacity_pct - a.capacity_pct;
+  });
+
+  const html = sorted.map(p => {
+    const color = capacityColor(p.capacity_pct);
+    const pct   = p.capacity_pct;
+    if (p.is_closed) {
+      return `<div class="card closed">
+        <div class="card-name" title="${p.name}">${shortName(p.name)}</div>
+        <div class="card-closed-label">Closed</div>
+      </div>`;
+    }
+    return `<div class="card">
+      <div class="card-name" title="${p.name}">${shortName(p.name)}</div>
+      <div class="card-pct" style="color:${color}">${pct}%</div>
+      <div class="card-bar-track">
+        <div class="card-bar-fill" style="width:${pct}%;background:${color}"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('cards-container').innerHTML = `<div class="cards">${html}</div>`;
+}
+
+// ── Pool selects ────────────────────────────────────────────────────────────
+
+let poolNames = {};
+
+function populateSelects(pools) {
+  pools.forEach(p => { poolNames[p.id] = p.name; });
+  const sorted = [...pools].sort((a, b) => a.name.localeCompare(b.name));
+  const opts = sorted.map(p =>
+    `<option value="${p.id}">${shortName(p.name)}</option>`
+  ).join('');
+
+  ['ts-pool-select', 'pat-pool-select'].forEach(id => {
+    const el = document.getElementById(id);
+    el.innerHTML = `<option value="__all__">— All pools (average) —</option>` + opts;
+  });
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+
+let allRecords = [];
+let activeDays = 7;
+
+async function init() {
+  const months = monthsToTry();
+  const chunks = await Promise.all(months.map(fetchMonth));
+  allRecords = chunks.flat().sort((a, b) => a.timestamp - b.timestamp);
+
+  if (!allRecords.length) {
+    document.getElementById('cards-container').innerHTML =
+      '<p style="color:var(--muted);padding:20px 0">No data found.</p>';
+    return;
+  }
+
+  const latest = allRecords[allRecords.length - 1];
+  const first  = allRecords[0];
+  const count  = allRecords.length;
+
+  document.getElementById('header-sub').textContent =
+    `${count} snapshots · ${fmtTime(first.timestamp)} → ${fmtTime(latest.timestamp)} SGT`;
+  document.getElementById('status').textContent = '';
+
+  populateSelects(latest.pools);
+  renderCards(latest);
+  renderTsChart(allRecords, '__all__', activeDays);
+  renderPatternCharts(allRecords, '__all__');
+
+  // Range buttons
+  document.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeDays = parseInt(btn.dataset.days, 10);
+      renderTsChart(allRecords, document.getElementById('ts-pool-select').value, activeDays);
+    });
+  });
+
+  document.getElementById('ts-pool-select').addEventListener('change', e => {
+    renderTsChart(allRecords, e.target.value, activeDays);
+  });
+
+  document.getElementById('pat-pool-select').addEventListener('change', e => {
+    renderPatternCharts(allRecords, e.target.value);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
