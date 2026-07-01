@@ -30,14 +30,17 @@ async function collect() {
 
   const data = await scrape();
 
+  const mapFacility = (f) => ({
+    id: f.id,
+    name: f.name,
+    capacity_pct: f.capacityPercentage,
+    is_closed: f.isClosed,
+  });
+
   const record = {
     timestamp: data.timestamp,
-    pools: data.swimFacilities.map((f) => ({
-      id: f.id,
-      name: f.name,
-      capacity_pct: f.capacityPercentage,
-      is_closed: f.isClosed,
-    })),
+    pools: data.swimFacilities.map(mapFacility),
+    gyms: (data.gymFacilities ?? []).map(mapFacility),
   };
 
   const month = new Date(data.timestamp).toISOString().slice(0, 7); // "YYYY-MM"
@@ -49,7 +52,7 @@ async function collect() {
 
   console.log(
     `[${new Date().toISOString()}] appended to ${path.basename(outPath)} ` +
-    `(${data.swimFacilities.length} pools, snapshot: ${new Date(data.timestamp).toISOString()})`
+    `(${data.swimFacilities.length} pools, ${(data.gymFacilities ?? []).length} gyms, snapshot: ${new Date(data.timestamp).toISOString()})`
   );
 }
 

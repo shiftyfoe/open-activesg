@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ActiveSG Pool Tracker</title>
+  <title>ActiveSG Tracker</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -20,6 +20,7 @@
       --orange: #f97316;
       --red: #ef4444;
       --accent: #38bdf8;
+      --accent-gym: #a78bfa;
     }
 
     body {
@@ -41,6 +42,36 @@
     header h1 { font-size: 22px; font-weight: 700; color: var(--accent); }
     header p { color: var(--muted); font-size: 13px; margin-top: 4px; }
 
+    /* ── facility tabs ── */
+    .tab-bar {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 16px 20px 0;
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      padding: 8px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      border-radius: 6px 6px 0 0;
+      margin-bottom: -1px;
+    }
+
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active[data-tab="pool"] { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-btn.active[data-tab="gym"]  { color: var(--accent-gym); border-bottom-color: var(--accent-gym); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
     .main { max-width: 1400px; margin: 0 auto; padding: 20px; }
 
     /* ── section ── */
@@ -54,7 +85,7 @@
       margin-bottom: 12px;
     }
 
-    /* ── pool cards ── */
+    /* ── cards ── */
     .cards {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -186,52 +217,104 @@
 <body>
 
 <header>
-  <h1>ActiveSG Pool Tracker</h1>
+  <h1>ActiveSG Tracker</h1>
   <p id="header-sub">Loading…</p>
 </header>
 
-<div class="main">
-  <div id="status"></div>
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="pool">Pools</button>
+  <button class="tab-btn" data-tab="gym">Gyms</button>
+</div>
 
-  <!-- ── Latest snapshot ── -->
-  <div class="section">
-    <div class="section-title">Latest Snapshot</div>
-    <div id="cards-container">
-      <div class="loading"><div class="spinner"></div> Fetching data…</div>
+<!-- ══════════ POOLS TAB ══════════ -->
+<div id="tab-pool" class="tab-panel active">
+  <div class="main">
+    <div id="pool-status" class="section" style="margin-bottom:0;"></div>
+
+    <div class="section">
+      <div class="section-title">Latest Snapshot</div>
+      <div id="pool-cards-container">
+        <div class="loading"><div class="spinner"></div> Fetching data…</div>
+      </div>
     </div>
-  </div>
 
-  <!-- ── Time series ── -->
-  <div class="section">
-    <div class="section-title">Capacity Over Time</div>
-    <div class="chart-box">
-      <div class="chart-controls">
-        <select id="ts-pool-select"><option value="__all__">— All pools (average) —</option></select>
-        <div class="range-btns">
-          <button class="range-btn active" data-days="7">7d</button>
-          <button class="range-btn" data-days="30">30d</button>
-          <button class="range-btn" data-days="90">90d</button>
-          <button class="range-btn" data-days="0">All</button>
+    <div class="section">
+      <div class="section-title">Capacity Over Time</div>
+      <div class="chart-box">
+        <div class="chart-controls">
+          <select id="pool-ts-select"><option value="__all__">— All pools (average) —</option></select>
+          <div class="range-btns" id="pool-range-btns">
+            <button class="range-btn active" data-days="7">7d</button>
+            <button class="range-btn" data-days="30">30d</button>
+            <button class="range-btn" data-days="90">90d</button>
+            <button class="range-btn" data-days="0">All</button>
+          </div>
+        </div>
+        <canvas id="pool-ts-chart" height="260"></canvas>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Usage Patterns (SGT)</div>
+      <div class="chart-controls" style="margin-bottom:12px;">
+        <select id="pool-pat-select"><option value="__all__">— All pools (average) —</option></select>
+      </div>
+      <div class="two-col">
+        <div class="chart-box">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Average by Hour of Day</div>
+          <canvas id="pool-hour-chart" height="220"></canvas>
+        </div>
+        <div class="chart-box">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Average by Day of Week</div>
+          <canvas id="pool-dow-chart" height="220"></canvas>
         </div>
       </div>
-      <canvas id="ts-chart" height="260"></canvas>
     </div>
   </div>
+</div>
 
-  <!-- ── Hourly pattern + day-of-week ── -->
-  <div class="section">
-    <div class="section-title">Usage Patterns (SGT)</div>
-    <div class="chart-controls" style="margin-bottom:12px;">
-      <select id="pat-pool-select"><option value="__all__">— All pools (average) —</option></select>
-    </div>
-    <div class="two-col">
-      <div class="chart-box">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Average by Hour of Day</div>
-        <canvas id="hour-chart" height="220"></canvas>
+<!-- ══════════ GYMS TAB ══════════ -->
+<div id="tab-gym" class="tab-panel">
+  <div class="main">
+    <div id="gym-status" class="section" style="margin-bottom:0;"></div>
+
+    <div class="section">
+      <div class="section-title">Latest Snapshot</div>
+      <div id="gym-cards-container">
+        <div class="loading"><div class="spinner"></div> Fetching data…</div>
       </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Capacity Over Time</div>
       <div class="chart-box">
-        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Average by Day of Week</div>
-        <canvas id="dow-chart" height="220"></canvas>
+        <div class="chart-controls">
+          <select id="gym-ts-select"><option value="__all__">— All gyms (average) —</option></select>
+          <div class="range-btns" id="gym-range-btns">
+            <button class="range-btn active" data-days="7">7d</button>
+            <button class="range-btn" data-days="30">30d</button>
+            <button class="range-btn" data-days="90">90d</button>
+            <button class="range-btn" data-days="0">All</button>
+          </div>
+        </div>
+        <canvas id="gym-ts-chart" height="260"></canvas>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Usage Patterns (SGT)</div>
+      <div class="chart-controls" style="margin-bottom:12px;">
+        <select id="gym-pat-select"><option value="__all__">— All gyms (average) —</option></select>
+      </div>
+      <div class="two-col">
+        <div class="chart-box">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Average by Hour of Day</div>
+          <canvas id="gym-hour-chart" height="220"></canvas>
+        </div>
+        <div class="chart-box">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Average by Day of Week</div>
+          <canvas id="gym-dow-chart" height="220"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -239,7 +322,7 @@
 
 <script>
 const REPO = 'shiftyfoe/open-activesg';
-const RAW = `https://raw.githubusercontent.com/${REPO}/main/data`;
+const RAW  = `https://raw.githubusercontent.com/${REPO}/main/data`;
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -250,15 +333,12 @@ function capacityColor(pct) {
   return '#ef4444';
 }
 
-function toSGT(ts) {
-  return new Date(ts + 8 * 3600_000); // UTC+8
-}
-
+function toSGT(ts) { return new Date(ts + 8 * 3600_000); }
 function sgtHour(ts) { return toSGT(ts).getUTCHours(); }
-function sgtDow(ts)  { return toSGT(ts).getUTCDay(); }  // 0=Sun
+function sgtDow(ts)  { return toSGT(ts).getUTCDay(); }
 
-function avgOpen(pools) {
-  const open = pools.filter(p => !p.is_closed);
+function avgOpen(items) {
+  const open = items.filter(p => !p.is_closed);
   if (!open.length) return 0;
   return open.reduce((s, p) => s + p.capacity_pct, 0) / open.length;
 }
@@ -276,8 +356,11 @@ function shortName(name) {
   return name
     .replace('Swimming Complex', '')
     .replace('ActiveSG Sport Park @ ', '')
+    .replace('ActiveSG Gym @ ', '')
+    .replace('ActiveSG Gym', '')
     .replace('ActiveSG ', '')
     .replace(' Complex', '')
+    .replace(' ActiveSG Gym', '')
     .trim();
 }
 
@@ -304,47 +387,44 @@ async function fetchMonth(month) {
   } catch { return []; }
 }
 
-// ── Charts ─────────────────────────────────────────────────────────────────
+// ── Chart helpers ──────────────────────────────────────────────────────────
 
 Chart.defaults.color = '#94a3b8';
 Chart.defaults.borderColor = '#334155';
 Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 Chart.defaults.font.size = 12;
 
-let tsChart = null;
-let hourChart = null;
-let dowChart = null;
+const charts = {};
 
-function buildTsDataset(records, poolId, days) {
+function buildTsDataset(records, key, itemId, days) {
   const cutoff = days > 0 ? Date.now() - days * 86400_000 : 0;
-  const filtered = records.filter(r => r.timestamp >= cutoff);
+  const filtered = records.filter(r => r.timestamp >= cutoff && r[key]?.length);
   if (!filtered.length) return { labels: [], data: [] };
 
-  const labels = filtered.map(r => fmtTime(r.timestamp));
-  const data = filtered.map(r => {
-    if (poolId === '__all__') return parseFloat(avgOpen(r.pools).toFixed(1));
-    const p = r.pools.find(x => x.id === poolId);
-    return p && !p.is_closed ? p.capacity_pct : null;
-  });
-
-  return { labels, data };
+  return {
+    labels: filtered.map(r => fmtTime(r.timestamp)),
+    data: filtered.map(r => {
+      if (itemId === '__all__') return parseFloat(avgOpen(r[key]).toFixed(1));
+      const p = r[key].find(x => x.id === itemId);
+      return p && !p.is_closed ? p.capacity_pct : null;
+    })
+  };
 }
 
-function renderTsChart(records, poolId, days) {
-  const { labels, data } = buildTsDataset(records, poolId, days);
-  const ctx = document.getElementById('ts-chart');
+function renderTsChart(chartId, records, key, itemId, days, names, accentColor) {
+  const { labels, data } = buildTsDataset(records, key, itemId, days);
+  const ctx = document.getElementById(chartId);
+  if (charts[chartId]) { charts[chartId].destroy(); }
 
-  if (tsChart) { tsChart.destroy(); tsChart = null; }
-
-  tsChart = new Chart(ctx, {
+  charts[chartId] = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [{
-        label: poolId === '__all__' ? 'Average capacity %' : (poolNames[poolId] || poolId),
+        label: itemId === '__all__' ? 'Average capacity %' : (names[itemId] || itemId),
         data,
-        borderColor: '#38bdf8',
-        backgroundColor: 'rgba(56,189,248,.08)',
+        borderColor: accentColor,
+        backgroundColor: accentColor + '14',
         borderWidth: 2,
         pointRadius: labels.length < 40 ? 3 : 0,
         pointHoverRadius: 5,
@@ -359,41 +439,26 @@ function renderTsChart(records, poolId, days) {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
-        tooltip: {
-          callbacks: {
-            label: ctx => ` ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(1) + '%' : 'Closed'}`
-          }
-        }
+        tooltip: { callbacks: { label: c => ` ${c.parsed.y !== null ? c.parsed.y.toFixed(1) + '%' : 'Closed'}` } }
       },
       scales: {
-        x: {
-          ticks: {
-            maxTicksLimit: 8,
-            maxRotation: 0,
-          },
-          grid: { color: '#1e293b' }
-        },
-        y: {
-          min: 0,
-          max: 100,
-          ticks: { callback: v => v + '%' },
-          grid: { color: '#1e293b' }
-        }
+        x: { ticks: { maxTicksLimit: 8, maxRotation: 0 }, grid: { color: '#1e293b' } },
+        y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#1e293b' } }
       }
     }
   });
-
   ctx.parentElement.style.height = '260px';
 }
 
-function buildPatternDatasets(records, poolId) {
+function buildPatternDatasets(records, key, itemId) {
   const hourBuckets = Array.from({ length: 24 }, () => ({ sum: 0, n: 0 }));
   const dowBuckets  = Array.from({ length: 7  }, () => ({ sum: 0, n: 0 }));
 
   records.forEach(r => {
-    const val = poolId === '__all__'
-      ? avgOpen(r.pools)
-      : (() => { const p = r.pools.find(x => x.id === poolId); return p && !p.is_closed ? p.capacity_pct : null; })();
+    if (!r[key]?.length) return;
+    const val = itemId === '__all__'
+      ? avgOpen(r[key])
+      : (() => { const p = r[key].find(x => x.id === itemId); return p && !p.is_closed ? p.capacity_pct : null; })();
     if (val === null || val === undefined) return;
 
     const h = sgtHour(r.timestamp);
@@ -402,14 +467,14 @@ function buildPatternDatasets(records, poolId) {
     dowBuckets[d].sum  += val; dowBuckets[d].n++;
   });
 
-  const hourData = hourBuckets.map(b => b.n ? parseFloat((b.sum / b.n).toFixed(1)) : null);
-  const dowData  = dowBuckets.map (b => b.n ? parseFloat((b.sum / b.n).toFixed(1)) : null);
-  return { hourData, dowData };
+  return {
+    hourData: hourBuckets.map(b => b.n ? parseFloat((b.sum / b.n).toFixed(1)) : null),
+    dowData:  dowBuckets.map (b => b.n ? parseFloat((b.sum / b.n).toFixed(1)) : null),
+  };
 }
 
-function renderPatternCharts(records, poolId) {
-  const { hourData, dowData } = buildPatternDatasets(records, poolId);
-
+function renderPatternCharts(hourId, dowId, records, key, itemId) {
+  const { hourData, dowData } = buildPatternDatasets(records, key, itemId);
   const hourLabels = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2,'0')}:00`);
   const dowLabels  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -439,23 +504,17 @@ function renderPatternCharts(records, poolId) {
     }
   });
 
-  const hCtx = document.getElementById('hour-chart');
-  const dCtx = document.getElementById('dow-chart');
-
-  if (hourChart) { hourChart.destroy(); }
-  if (dowChart)  { dowChart.destroy(); }
-
-  hourChart = new Chart(hCtx, barOpts(hourLabels, hourData));
-  dowChart  = new Chart(dCtx, barOpts(dowLabels,  dowData));
-
-  hCtx.parentElement.style.height = '220px';
-  dCtx.parentElement.style.height = '220px';
+  [hourId, dowId].forEach(id => { if (charts[id]) charts[id].destroy(); });
+  charts[hourId] = new Chart(document.getElementById(hourId), barOpts(hourLabels, hourData));
+  charts[dowId]  = new Chart(document.getElementById(dowId),  barOpts(dowLabels,  dowData));
+  document.getElementById(hourId).parentElement.style.height = '220px';
+  document.getElementById(dowId).parentElement.style.height  = '220px';
 }
 
 // ── Cards ──────────────────────────────────────────────────────────────────
 
-function renderCards(record) {
-  const sorted = [...record.pools].sort((a, b) => {
+function renderCards(containerId, items) {
+  const sorted = [...items].sort((a, b) => {
     if (a.is_closed !== b.is_closed) return a.is_closed ? 1 : -1;
     return b.capacity_pct - a.capacity_pct;
   });
@@ -478,30 +537,40 @@ function renderCards(record) {
     </div>`;
   }).join('');
 
-  document.getElementById('cards-container').innerHTML = `<div class="cards">${html}</div>`;
+  document.getElementById(containerId).innerHTML = `<div class="cards">${html}</div>`;
 }
 
-// ── Pool selects ────────────────────────────────────────────────────────────
+// ── Selects ────────────────────────────────────────────────────────────────
 
-let poolNames = {};
+function populateSelect(selectId, items, allLabel) {
+  const names = {};
+  items.forEach(p => { names[p.id] = p.name; });
+  const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name));
+  const opts = sorted.map(p => `<option value="${p.id}">${shortName(p.name)}</option>`).join('');
+  document.getElementById(selectId).innerHTML =
+    `<option value="__all__">${allLabel}</option>` + opts;
+  return names;
+}
 
-function populateSelects(pools) {
-  pools.forEach(p => { poolNames[p.id] = p.name; });
-  const sorted = [...pools].sort((a, b) => a.name.localeCompare(b.name));
-  const opts = sorted.map(p =>
-    `<option value="${p.id}">${shortName(p.name)}</option>`
-  ).join('');
+// ── Tab switching ──────────────────────────────────────────────────────────
 
-  ['ts-pool-select', 'pat-pool-select'].forEach(id => {
-    const el = document.getElementById(id);
-    el.innerHTML = `<option value="__all__">— All pools (average) —</option>` + opts;
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${tab}`).classList.add('active');
   });
-}
+});
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 
 let allRecords = [];
-let activeDays = 7;
+let poolNames  = {};
+let gymNames   = {};
+let poolDays   = 7;
+let gymDays    = 7;
 
 async function init() {
   const months = monthsToTry();
@@ -509,7 +578,9 @@ async function init() {
   allRecords = chunks.flat().sort((a, b) => a.timestamp - b.timestamp);
 
   if (!allRecords.length) {
-    document.getElementById('cards-container').innerHTML =
+    document.getElementById('pool-cards-container').innerHTML =
+      '<p style="color:var(--muted);padding:20px 0">No data found.</p>';
+    document.getElementById('gym-cards-container').innerHTML =
       '<p style="color:var(--muted);padding:20px 0">No data found.</p>';
     return;
   }
@@ -517,32 +588,66 @@ async function init() {
   const latest = allRecords[allRecords.length - 1];
   const first  = allRecords[0];
   const count  = allRecords.length;
+  const subText = `${count} snapshots · ${fmtTime(first.timestamp)} → ${fmtTime(latest.timestamp)} SGT`;
 
-  document.getElementById('header-sub').textContent =
-    `${count} snapshots · ${fmtTime(first.timestamp)} → ${fmtTime(latest.timestamp)} SGT`;
-  document.getElementById('status').textContent = '';
+  document.getElementById('header-sub').textContent = subText;
 
-  populateSelects(latest.pools);
-  renderCards(latest);
-  renderTsChart(allRecords, '__all__', activeDays);
-  renderPatternCharts(allRecords, '__all__');
+  // ── Pools ──
+  if (latest.pools?.length) {
+    poolNames = populateSelect('pool-ts-select', latest.pools, '— All pools (average) —');
+    populateSelect('pool-pat-select', latest.pools, '— All pools (average) —');
+    renderCards('pool-cards-container', latest.pools);
+    renderTsChart('pool-ts-chart', allRecords, 'pools', '__all__', poolDays, poolNames, '#38bdf8');
+    renderPatternCharts('pool-hour-chart', 'pool-dow-chart', allRecords, 'pools', '__all__');
+  }
 
-  // Range buttons
-  document.querySelectorAll('.range-btn').forEach(btn => {
+  // ── Gyms ──
+  const gymRecords = allRecords.filter(r => r.gyms?.length);
+  if (latest.gyms?.length) {
+    gymNames = populateSelect('gym-ts-select', latest.gyms, '— All gyms (average) —');
+    populateSelect('gym-pat-select', latest.gyms, '— All gyms (average) —');
+    renderCards('gym-cards-container', latest.gyms);
+    renderTsChart('gym-ts-chart', gymRecords, 'gyms', '__all__', gymDays, gymNames, '#a78bfa');
+    renderPatternCharts('gym-hour-chart', 'gym-dow-chart', gymRecords, 'gyms', '__all__');
+  } else {
+    document.getElementById('gym-cards-container').innerHTML =
+      '<p style="color:var(--muted);padding:20px 0">No gym data yet — will appear after the next collection run.</p>';
+  }
+
+  // ── Pool controls ──
+  document.querySelectorAll('#pool-range-btns .range-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#pool-range-btns .range-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      activeDays = parseInt(btn.dataset.days, 10);
-      renderTsChart(allRecords, document.getElementById('ts-pool-select').value, activeDays);
+      poolDays = parseInt(btn.dataset.days, 10);
+      renderTsChart('pool-ts-chart', allRecords, 'pools', document.getElementById('pool-ts-select').value, poolDays, poolNames, '#38bdf8');
     });
   });
 
-  document.getElementById('ts-pool-select').addEventListener('change', e => {
-    renderTsChart(allRecords, e.target.value, activeDays);
+  document.getElementById('pool-ts-select').addEventListener('change', e => {
+    renderTsChart('pool-ts-chart', allRecords, 'pools', e.target.value, poolDays, poolNames, '#38bdf8');
   });
 
-  document.getElementById('pat-pool-select').addEventListener('change', e => {
-    renderPatternCharts(allRecords, e.target.value);
+  document.getElementById('pool-pat-select').addEventListener('change', e => {
+    renderPatternCharts('pool-hour-chart', 'pool-dow-chart', allRecords, 'pools', e.target.value);
+  });
+
+  // ── Gym controls ──
+  document.querySelectorAll('#gym-range-btns .range-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#gym-range-btns .range-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      gymDays = parseInt(btn.dataset.days, 10);
+      renderTsChart('gym-ts-chart', gymRecords, 'gyms', document.getElementById('gym-ts-select').value, gymDays, gymNames, '#a78bfa');
+    });
+  });
+
+  document.getElementById('gym-ts-select').addEventListener('change', e => {
+    renderTsChart('gym-ts-chart', gymRecords, 'gyms', e.target.value, gymDays, gymNames, '#a78bfa');
+  });
+
+  document.getElementById('gym-pat-select').addEventListener('change', e => {
+    renderPatternCharts('gym-hour-chart', 'gym-dow-chart', gymRecords, 'gyms', e.target.value);
   });
 }
 
